@@ -1,6 +1,9 @@
 import argparse
 from pathlib import Path
 
+from ase.io import write
+
+
 import ase
 import numpy as np
 import pandas as pd
@@ -58,6 +61,23 @@ parser.add_argument("--model", type=str, default="small")
 args = parser.parse_args()
 args.output_dir.mkdir(exist_ok=True, parents=True)
 
+SAVE_INTERVAL = 100
+REDO = 1
+
+
+def backup_if_exists(filepath):
+    """If filepath exists, rename it to filepath-N.xyz where N is the next available number."""
+    filepath = Path(filepath)
+    if filepath.exists():
+        stem = filepath.stem  # e.g., "out-1-1-defect-free-npt-equil-AND-prod"
+        counter = 1
+        while True:
+            backup_path = filepath.parent / f"{stem}-{counter}.xyz"
+            if not backup_path.exists():
+                filepath.rename(backup_path)
+                break
+            counter += 1
+
 
 ################################################################################
 # Energy minimization: defect-free structure
@@ -95,6 +115,16 @@ dyn = Inhomogeneous_NPTBerendsen(
     taup=args.ptime * units.fs,
     compressibility_au=1.0 / bulk_modulus,
 )
+
+backup_if_exists(args.output_dir / f"out-{REDO}-1-defect-free-npt-equil-AND-prod.xyz")
+dyn.attach(
+    write,
+    filename=args.output_dir / f"out-{REDO}-1-defect-free-npt-equil-AND-prod.xyz",
+    images=atoms,
+    append=True,
+    interval=SAVE_INTERVAL,
+)
+
 MaxwellBoltzmannDistribution(atoms, temperature_K=args.temperature)
 Stationary(atoms)
 
@@ -102,6 +132,8 @@ Stationary(atoms)
 cellpar_traj = []
 for step in tqdm(range(args.npt_equil_stpes), desc="NPT equil"):
     dyn.run(steps=1)
+
+
 for step in tqdm(range(args.npt_prod_steps), desc="NPT prod"):
     dyn.run(steps=1)
     if step % args.log_interval == 0:
@@ -138,6 +170,15 @@ dyn = Langevin(
 )
 MaxwellBoltzmannDistribution(atoms, temperature_K=args.temperature)
 Stationary(atoms)
+
+backup_if_exists(args.output_dir / f"out-{REDO}-2-defect-free-nvt-msd.xyz")
+dyn.attach(
+    write,
+    filename=args.output_dir / f"out-{REDO}-2-defect-free-nvt-msd.xyz",
+    images=atoms,
+    append=True,
+    interval=SAVE_INTERVAL,
+)
 
 temperatures = []
 for step in tqdm(range(args.nvt_equil_steps), desc="NVT equil"):
@@ -182,6 +223,15 @@ dyn = Langevin(
 )
 MaxwellBoltzmannDistribution(atoms, temperature_K=args.temperature)
 Stationary(atoms)
+
+backup_if_exists(args.output_dir / f"out-{REDO}-3-defect-free-frenkel-ladd.xyz")
+dyn.attach(
+    write,
+    filename=args.output_dir / f"out-{REDO}-3-defect-free-frenkel-ladd.xyz",
+    images=atoms,
+    append=True,
+    interval=SAVE_INTERVAL,
+)
 
 # Define Frenkel-Ladd path
 t = np.linspace(0.0, 1.0, args.alchemy_switch_steps)
@@ -255,6 +305,15 @@ dyn = Inhomogeneous_NPTBerendsen(
 MaxwellBoltzmannDistribution(atoms, temperature_K=args.temperature)
 Stationary(atoms)
 
+backup_if_exists(args.output_dir / f"out-{REDO}-4-defect-npt-equil-AND-prod.xyz")
+dyn.attach(
+    write,
+    filename=args.output_dir / f"out-{REDO}-4-defect-npt-equil-AND-prod.xyz",
+    images=atoms,
+    append=True,
+    interval=SAVE_INTERVAL,
+)
+
 # NPT equilibration and volume relaxation
 cellpar_traj = []
 for step in tqdm(range(args.npt_equil_stpes), desc="NPT equil"):
@@ -298,6 +357,15 @@ dyn = Langevin(
 MaxwellBoltzmannDistribution(atoms, temperature_K=args.temperature)
 Stationary(atoms)
 
+backup_if_exists(args.output_dir / f"out-{REDO}-5-defect-frenkel-ladd.xyz")
+dyn.attach(
+    write,
+    filename=args.output_dir / f"out-{REDO}-5-defect-frenkel-ladd.xyz",
+    images=atoms,
+    append=True,
+    interval=SAVE_INTERVAL,
+)
+
 # Simulation loop
 calc.compute_mace = False
 total_steps = 2 * args.alchemy_equil_steps + 2 * args.alchemy_switch_steps
@@ -339,6 +407,15 @@ dyn = Inhomogeneous_NPTBerendsen(
 MaxwellBoltzmannDistribution(atoms, temperature_K=args.temperature)
 Stationary(atoms)
 
+backup_if_exists(args.output_dir / f"out-{REDO}-6-partial-fl-npt-equil.xyz")
+dyn.attach(
+    write,
+    filename=args.output_dir / f"out-{REDO}-6-partial-fl-npt-equil.xyz",
+    images=atoms,
+    append=True,
+    interval=SAVE_INTERVAL,
+)
+
 # NPT equilibration and volume relaxation
 for step in tqdm(range(args.npt_equil_stpes), desc="NPT equil"):
     dyn.run(steps=1)
@@ -370,6 +447,15 @@ dyn = NPT(
     externalstress=args.pressure * 1.01325 * units.bar,
     ttime=args.ttime * units.fs,
     pfactor=pfactor,
+)
+
+backup_if_exists(args.output_dir / f"out-{REDO}-7-alchemical-switching.xyz")
+dyn.attach(
+    write,
+    filename=args.output_dir / f"out-{REDO}-7-alchemical-switching.xyz",
+    images=atoms,
+    append=True,
+    interval=SAVE_INTERVAL,
 )
 
 # Define alchemical path
